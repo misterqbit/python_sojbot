@@ -1,0 +1,13 @@
+Bonjour ${member} !
+
+Pour bien démarrer, rends-toi sur [#les-règles-du-jeu](https://discord.com/channels/342731229315072000/902490569824161812) pour consulter les quelques règles du serveur. Tu peux aussi aller te présenter sur [#présentations](https://discord.com/channels/342731229315072000/902875037730758726), mais rien d'obligatoire.
+
+Si tu es venu·e pour réagir aux épisodes de SoJ, tu trouveras ton bonheur dans les fils du salon [#derniers-épisodes](https://discord.com/channels/342731229315072000/902492905904693288). Pour discuter de façon plus générale autour du podcast, direction le salon [#autour-de-soj](https://discord.com/channels/342731229315072000/902494925696929803). Mais surtout, pense à consulter régulièrement le salon [#discussions-en-cours](https://discord.com/channels/342731229315072000/941250672811212810) pour retrouver la liste des sujets chauds du moment.
+
+Tu peux également échanger sur le monde vidéoludique dans [#jeux-vidéo](https://discord.com/channels/342731229315072000/902495555052261387), ou juste raconter ta vie dans les nombreux fils des salons [#de-tout-et-de-rien](https://discord.com/channels/342731229315072000/902495162725462026) ainsi que [#et-quand-vous-ne-jouez-pas](https://discord.com/channels/342731229315072000/902858210057269249).
+
+Dans tous les cas, n'hésite pas à participer, à fouiner et à être curieu·reuse ! Explore les fils existants, désarchive-les si tu veux les relancer, et crées-en si tu sens de l'engouement sur une thématique particulière; la plupart des fils s'effilochent, mais ce n'est pas grave! Si tu ne sais pas comment t'y prendre, tu peux t'auto-former sur le salon [#tuto-discord](https://discord.com/channels/342731229315072000/909882162378051585). Tu peux même utiliser nos magnifiques bots (jesuisunrobot, PastilleBot et Yaourtière) : commence un message par / et découvre ses nombreuses commandes.
+
+Pour terminer, en cas de problème, tu peux appeler @Modération à l'aide ou envoyer un message privé à un·e membre de l'équipe de modération. Notre philosophie : faire de ce Discord un lieu d'échange inclusif et bienveillant, sans pour autant exclure les débats ou les boutades !
+
+Bonne visite, et au plaisir de te croiser ! Pourquoi pas sur le salon de jeu [#deaf-test](https://discord.com/channels/342731229315072000/922434323020414976) et ses nombreux fils ?
