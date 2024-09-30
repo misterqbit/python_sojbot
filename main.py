@@ -1,14 +1,17 @@
 import disnake
-from disnake.ext import commands
+from disnake.ext import commands, tasks
 from config import DISCORD_BOT_TOKEN
 import small_commands
-import small_commands_with_db
+import deaftest_infinite
+import sojdle
 import search_thread_command
 from active_threads_command import ActiveThreadsManager
 import welcome_message_command
 import logging  # Importing logging module
 import search_review_command
-
+import birthday_checker
+#import podcast
+from twitch import app, disnake_client
 
 # Set up basic configuration for logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -28,6 +31,8 @@ async def on_ready():
     logging.info(f'Logged in as {bot.user}')
     active_threads_manager = ActiveThreadsManager(bot)
     logging.info('ActiveThreadsManager instance created.')
+    if not birthday_greetings_task.is_running():
+        birthday_greetings_task.start()
 
 @bot.event
 async def on_member_join(member: disnake.Member):
@@ -57,15 +62,15 @@ async def buildthelist_command(inter: disnake.ApplicationCommandInteraction):
 
 
 @bot.slash_command(
-    name="up",
-    description="Aller au 1er message de ce fil"
+    name="début",
+    description="Aller au tout 1er message de ce fil"
 )
 async def up_command(inter: disnake.ApplicationCommandInteraction):
     await small_commands.up(inter, bot)
 
 
 @bot.slash_command(
-    name="dice", 
+    name="dé", 
     description="Lancer x dés à y faces."
 )
 async def roll_dice_command(inter, dés: int, faces: int):
@@ -81,7 +86,7 @@ async def achievement(ctx: disnake.ApplicationCommandInteraction, text: str):
 
 
 @bot.slash_command(
-    name="count_members",
+    name="compter_membres",
     description="Compter le nombre de membres du serveur"
 )
 async def member_count_command(inter: disnake.ApplicationCommandInteraction):
@@ -90,22 +95,59 @@ async def member_count_command(inter: disnake.ApplicationCommandInteraction):
 
 @bot.slash_command(
     name="pin_toggle", 
-    description="Pin or Unpin a message by its ID, only for SOJ_GO role"
+    description="Pin or Unpin a message by its ID, only for SOJ_GO role",
+    permissions="SOJ_GO"
 )
 async def pin_toggle(ctx: disnake.ApplicationCommandInteraction, message_id: str):
     await small_commands.togglepin_message(ctx, message_id)
 
+"""
+@bot.slash_command(
+    name="top_dt", 
+    description="liste des meilleures deaf test de ce fil",
+    permissions="Modération"
+)
+async def top_images(ctx: disnake.ApplicationCommandInteraction, thread_id: str, reaction_nbr_max: int, reaction_nbr_min: int):
+    await small_commands.find_top_images(ctx, thread_id, bot, reaction_nbr_max, reaction_nbr_min)
+"""
+
+"""
+@bot.slash_command(
+    name="sojdle", 
+    description="wordle des jeux chroniqués dans SOJ",
+    permissions="Modération"
+)
+async def launch_sojdle(inter: disnake.ApplicationCommandInteraction, answer: str):
+    await sojdle.sojdle(inter, answer, bot)
+"""
+
+"""
+@bot.slash_command(name="startpodcast", description="Start playing the podcast", permissions="Modération")
+async def startpodcast(ctx):
+    await podcast.play(ctx)
+"""
+# from birthday_checker.py
+# Register the add_birthday slash command
+@bot.slash_command(name="anniversaire", description="Enregistrez votre anniversaire (format : MM-JJ)")
+async def add_birthday(inter: disnake.ApplicationCommandInteraction, birthday: str):
+    await birthday_checker.add_birthday_command(inter, birthday)
+
+# Task that runs every day to check and greet users
+@tasks.loop(hours=24)
+async def birthday_greetings_task():
+    await birthday_checker.send_birthday_greetings(bot)
+
 
 # Register commands from search_thread_command.py
 @bot.slash_command(
-    name="search", 
+    name="chercher", 
     description="Search for threads, reviews, or episodes."
 )
 async def search(inter: disnake.ApplicationCommandInteraction):
     pass
 
 @search.sub_command(    
-    name="thread",
+    name="fil",
     description="Recherche d'un fil"
 )
 async def search_thread(inter: disnake.ApplicationCommandInteraction, expression: str):
@@ -114,26 +156,38 @@ async def search_thread(inter: disnake.ApplicationCommandInteraction, expression
 
 # Command to search reviews
 @search.sub_command(
-    name="review",
-    description="Pour trouver un test dans des magazines d'antan"
+    name="test",
+    description="Pour trouver un test de jv dans des magazines d'antan"
 )
 async def search_review(inter: disnake.ApplicationCommandInteraction, expression: str):
     await search_review_command.review_search(inter, expression)
 
 
-# Register commands from small_commands_with_db.py
+# Register commands from small_commands_with_file.py
 @bot.slash_command(
     name="deaf_test_infinite",
     description="Afficher l'image d'un jeu"
 )
 async def dti_command(inter: disnake.ApplicationCommandInteraction):
-    await small_commands_with_db.display_image(inter, bot)
+    await deaftest_infinite.display_image(inter, bot)
 
 @bot.listen("on_button_click")
 async def dti_button(inter: disnake.ApplicationCommandInteraction):
-    await small_commands_with_db.button_callback(inter, bot)
+    await deaftest_infinite.button_callback(inter, bot)
 
-
+# SOJDLE command from sojdle.py
+@bot.slash_command(name="sojdle", description="wordle mais avec des titres de jv chroniqués ds SOJ")
+async def sojdleguess(ctx: disnake.ApplicationCommandInteraction, guess: str):
+    MAX_GUESS_LENGTH = 50  # Set a maximum guess length
+    if len(guess) > MAX_GUESS_LENGTH:
+        await ctx.send(f"⚠️ Votre proposition est trop longue! Merci de bien vouloir la limiter à {MAX_GUESS_LENGTH} caractères.")
+        return
+    else:
+        if not (ctx.channel_id == 944567098502438932):
+            await ctx.send(content="Cette commande est à utiliser dans le fil SOJDLE")
+            return
+        else: 
+            await sojdle.guess(ctx, guess)
 
 # #############################################################################################
 bot.run(DISCORD_BOT_TOKEN)
