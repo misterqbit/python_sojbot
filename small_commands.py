@@ -16,6 +16,10 @@ from tools.message_splitter import MessageSplitter
 # add_modos on thread creation
 import asyncio
 
+# top images
+from datetime import datetime, timedelta
+
+
 def get_random_int(min_val, max_val):
     return random.randint(min_val, max_val)
 
@@ -262,7 +266,7 @@ async def member_count(inter: disnake.ApplicationCommandInteraction):
         return
 
     # bot_count = len([x for x in guild.members if x.bot])
-    bot_count = 7
+    bot_count = 5
     bot_string = 'bot' + ('s' if bot_count > 1 else '')
 
     member_count = guild.member_count - bot_count
@@ -286,14 +290,20 @@ async def member_count(inter: disnake.ApplicationCommandInteraction):
 async def adding_modos(thread, bot):
     random_user_pool = ['265376610763538452', '223447091706462208', '114863657787064321', '364861291254382603', '296380281311723542']  # Add your user IDs here
 
-    # Choose two random user IDs from the pool
-    random_users = random.sample(random_user_pool, 2)
-    
+    # Specific user ID to always include
+    specific_user_id = '864750688764559390'  # Replace with the actual user ID
+
+    # Choose one random user ID from the pool
+    random_user = random.sample(random_user_pool, 1)
+
+    # Combine the specific user ID with the randomly selected user ID
+    final_user_list = [specific_user_id] + random_user
+
     # Add a delay of 3 seconds
     await asyncio.sleep(3)
     
     # Add the users to the thread
-    for user_id in random_users:
+    for user_id in final_user_list:
         user = await bot.fetch_user(user_id)
         await thread.add_user(user)
 
@@ -332,6 +342,54 @@ async def togglepin_message(ctx, message_id):
             await ctx.response.send_message("Failed to pin the message. Please try again later.", ephemeral=True)
 
 
+# ############################################################################# GET IMAGES POSTS WITH MOST REACTION EMOJIS
+
+async def find_top_images(ctx, thread_id: int, bot, reaction_nbr_max: int, reaction_nbr_min: int):
+    thread = (bot.get_channel(thread_id) or await bot.fetch_channel(thread_id))
+    print(thread_id)
+    print(thread)
+    if not thread:
+        await ctx.send("Invalid thread ID or thread not found.")
+        return
+    # ID of the destination thread to post the result
+    DESTINATION_THREAD_ID = 1236623516019720372
+    top_messages = []
+    message_count = 0
+    message_nombre = 0
+    # Calculate the datetime for one month ago
+    x_months_ago = datetime.utcnow() - timedelta(days=300)
+
+    await ctx.response.defer()
+
+    #async for message in thread.history(limit=None, after=x_months_ago):
+    async for message in thread.history(limit=None):
+
+       
+        if message_count >= 19:  # Check if reached the limit of 50 messages
+            break
+
+        if message.attachments:  # Check if message has attachments (images)
+            total_reactions = sum(reaction.count for reaction in message.reactions)
+            if reaction_nbr_min <= total_reactions <= reaction_nbr_max:  # Filter out messages with less than 20 total reactions
+                top_messages.append((message, total_reactions))
+                message_count += 1
+
+
+    top_messages.sort(key=lambda x: x[1], reverse=True)  # Sort by reaction count
+
+    if top_messages:
+        result = "\n".join([f"<{message.jump_url}>: {reactions} reactions" for message, reactions in top_messages])
+        destination_thread = bot.get_channel(DESTINATION_THREAD_ID)
+        if destination_thread:
+            await ctx.edit_original_response(content=f"Top posts with reactions in the thread (limited to top 20 messages):\n{result}")
+        else:
+            await ctx.edit_original_response(content="Destination thread not found.")
+    else:
+        await ctx.edit_original_response(content="No posts found in the thread.")
+    print("top_dt done")
+
+
 # #############################################################################
+
 async def goodbye(inter: disnake.ApplicationCommandInteraction):
     await inter.response.send_message("Goodbye!")
