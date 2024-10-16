@@ -5,10 +5,11 @@ import small_commands
 import deaftest_infinite
 import sojdle
 import search_thread_command
+import search_review_command
+import search_episode_command
 from active_threads_command import ActiveThreadsManager
 import welcome_message_command
 import logging  # Importing logging module
-import search_review_command
 import birthday_checker
 #import podcast
 from twitch import app, disnake_client
@@ -157,11 +158,19 @@ async def search_thread(inter: disnake.ApplicationCommandInteraction, expression
 # Command to search reviews
 @search.sub_command(
     name="test",
-    description="Pour trouver un test de jv dans des magazines d'antan"
+    description="Recherche d'un test de jv dans des magazines d'antan (tilt, etc.)"
 )
 async def search_review(inter: disnake.ApplicationCommandInteraction, expression: str):
     await search_review_command.review_search(inter, expression)
 
+
+# Command to search for a music of video game
+@search.sub_command(
+    name="musique",
+    description="Recherche d'une musique de jv dans les démons du midi"
+)
+async def search_music(inter, game_title: str):
+    await search_episode_command.search_music(inter, str)
 
 # Register commands from small_commands_with_file.py
 @bot.slash_command(
