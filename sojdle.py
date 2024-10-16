@@ -270,6 +270,6 @@ async def guess(ctx, guess: str):
                 new_title_display.append(':grey_question:')  # Question mark for other characters
 
         await ctx.channel.send(' '.join(new_title_display))  # Send the display for the new game title
-    else
+    else:
             update_game_state(LOCAL_VALUES_FILE, active_game_id, total_guesses, revealed_letters)
 
