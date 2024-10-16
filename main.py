@@ -186,9 +186,9 @@ async def dti_button(inter: disnake.ApplicationCommandInteraction):
 
 # SOJDLE command from sojdle.py
 @bot.slash_command(name="sojdle", description="wordle mais avec des titres de jv chroniqués ds SOJ")
-async def sojdleguess(ctx: disnake.ApplicationCommandInteraction, guess: str):
+async def sojdleguess(ctx: disnake.ApplicationCommandInteraction, titre: str):
     MAX_GUESS_LENGTH = 50  # Set a maximum guess length
-    if len(guess) > MAX_GUESS_LENGTH:
+    if len(titre) > MAX_GUESS_LENGTH:
         await ctx.send(f"⚠️ Votre proposition est trop longue! Merci de bien vouloir la limiter à {MAX_GUESS_LENGTH} caractères.")
         return
     else:
@@ -196,7 +196,7 @@ async def sojdleguess(ctx: disnake.ApplicationCommandInteraction, guess: str):
             await ctx.send(content="Cette commande est à utiliser dans le fil SOJDLE")
             return
         else: 
-            await sojdle.guess(ctx, guess)
+            await sojdle.guess(ctx, titre)
 
 # #############################################################################################
 bot.run(DISCORD_BOT_TOKEN)
