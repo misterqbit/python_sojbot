@@ -135,4 +135,15 @@ Au {self.date.astimezone(tz=tz.gettz('Europe/Paris')).strftime("%d/%m/%Y, %H:%M:
 > :{self.settings["up"]["emoji"]}: = {self.settings["up"]["description"]}
 > :{self.settings["dying"]["emoji"]}: = {self.settings["dying"]["description"]}
 > (nombre de messages écrits dans les 6 dernières heures)
+        """
 
+    def add_channel_and_threads_to_messages(self, channel_and_threads):
+        self.complete_last_message('\n\n\n')
+        self.complete_last_message(channel_and_threads["channel"].mention)
+
+        for thread in channel_and_threads["threads"]:
+            self.add_thread_to_messages(thread)
+
+    def complete_last_message(self, string_to_add):
+        last_message_length = len(self.messages[-1])
+        string_to_add_length = len(string_to_add)
