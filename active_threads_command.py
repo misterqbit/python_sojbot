@@ -13,8 +13,8 @@ def get_db_connection():
             user=DB_username,
             password=DB_password,
             database=DB_name,
-            charset= 'utf8mb4',  # Specify the charset
-            collation= 'utf8mb4_general_ci',  # Specify a compatible collation
+            charset='utf8mb4',  # Specify the charset
+            collation='utf8mb4_general_ci',  # Specify a compatible collation
             connection_timeout=10  # Set a reasonable timeout value
         )
         return connection
@@ -40,8 +40,7 @@ class ActiveThreadsManager:
     def read_settings():
         return read_yaml('config/active_threads.yml')
 
-
-##### LEVEL 0
+    ##### LEVEL 0
     @tasks.loop(hours=1)
     async def refresh_open_threads_list(self):
         self.initialize_run()
@@ -51,7 +50,7 @@ class ActiveThreadsManager:
 
         print(f"API Calls made: {self.api_call_count}")
         self.api_call_count = 0
-    
+
     @tasks.loop(hours=168)  # Run once a week
     async def delete_old_messages_from_db(self):
         db = get_db_connection()
@@ -73,7 +72,7 @@ class ActiveThreadsManager:
             cursor.close()
             db.close()
 
-##### LEVEL 1
+    ##### LEVEL 1
     def initialize_run(self):
         self.date = datetime.now(tz=timezone.utc)
         self.settings = self.read_settings()
@@ -96,7 +95,7 @@ class ActiveThreadsManager:
         await self.delete_old_messages()
         await self.send_new_messages()
 
-##### LEVEL 2
+    ##### LEVEL 2
     async def get_threads_info(self):
         self.threads = []
         threads_raw = await self.guild.active_threads()
@@ -115,6 +114,7 @@ class ActiveThreadsManager:
             self.threads.append(thread_dict)
 
     async def count_messages_last_6_hours(self):
+        self.channels_and_threads_dictionaries = []
         db = get_db_connection()
         if not db:
             print("Failed to connect to the database.")
@@ -141,20 +141,11 @@ class ActiveThreadsManager:
             # Update message counts for threads
             for thread in self.threads:
                 thread_id = thread["id"]
-                thread["message_count"] = message_counts.get(thread_id, 0)
-
-            # Get channels and their message counts
-            for channel in self.guild.text_channels:
-                channel_id = channel.id
-                if channel_id not in message_counts:
-                    continue
-                channel_dict = {
-                    "channel": channel,
-                    "mention": channel.mention,
-                    "id": channel_id,
-                    "message_count": message_counts[channel_id]
-                }
-                self.channels_and_threads_dictionaries.append(channel_dict)
+                parent_channel_id = thread["channel"].id
+                # Add thread message count
+                thread["thread_message_count"] = message_counts.get(thread_id, 0)
+                # Add parent channel message count
+                thread["channel_message_count"] = message_counts.get(parent_channel_id, 0)
 
         except mysql.connector.Error as err:
             print(f"Database error: {err}")
@@ -164,44 +155,63 @@ class ActiveThreadsManager:
 
     def build_channels_and_threads_list(self):
         self.channels_and_threads_dictionaries = []
+        # Store channels without active threads separately
+        channels_without_active_threads = {}
+
         while self.threads:
             channel = self.threads[0]["channel"]
             threads_channel = [thread for thread in self.threads if thread["channel"] == channel]
             channel_dictionary = {
                 "channel": channel,
-                "threads": [thread for thread in threads_channel if not thread["is_dead"] and not thread["excluded"]]
+                "threads": [thread for thread in threads_channel if not thread["is_dead"] and not thread["excluded"]],
+                "message_count": threads_channel[0].get("channel_message_count", 0)  # Get channel message count
             }
 
             if len(channel_dictionary["threads"]) > 0:
                 self.channels_and_threads_dictionaries.append(channel_dictionary)
-
+            else:
+                # Only add channels without active threads if message count > 0
+                message_count = channel_dictionary["message_count"]
+                if message_count > 0:
+                    channels_without_active_threads[channel.id] = {
+                        "channel": channel,
+                        "message_count": message_count
+                    }
             for thread in threads_channel:
                 self.threads.remove(thread)
+        
+    # Add channels without active threads to the final list if message count > 0
+        for channel_info in channels_without_active_threads.values():
+            self.channels_and_threads_dictionaries.append({
+                "channel": channel_info["channel"],
+                "threads": [],  # No threads
+                "message_count": channel_info["message_count"]
+            })
 
     def add_channel_and_threads_to_messages(self, channel_and_threads):
-        self.complete_last_message('\n\n\n')
+        self.complete_last_message('\n')
         self.complete_last_message(channel_and_threads["channel"].mention)
+        message_count = channel_and_threads.get("message_count", 0)
+        if message_count > 0:
+            self.complete_last_message(f" ({message_count})")
 
         # If there are threads, handle them
-        if "threads" in channel_and_threads:
+        if "threads" in channel_and_threads and channel_and_threads["threads"]:
             for thread in channel_and_threads["threads"]:
                 self.add_thread_to_messages(thread)
-        else:
-            # Handle channel message count
-            message_count = channel_and_threads.get("message_count", 0)   #NOT WORKING!!
-            if message_count > 0:
-                self.complete_last_message(f" ({message_count})")
+            self.complete_last_message('\n\n\n')
 
     async def delete_old_messages(self):
         async for message in self.channel_to_update.history(limit=None):
-            self.api_call_count += 1  
+            self.api_call_count += 1  # Increment for fetching each batch of messages
             await message.delete()
+            self.api_call_count += 1  # Increment for deleting each message
 
     async def send_new_messages(self):
         for message in self.messages:
             await self.channel_to_update.send(message)
 
-##### LEVEL 3
+    ##### LEVEL 3
     async def get_thread_archive_date(self, thread):
         up_timestamp = thread.archive_timestamp
         self.api_call_count += 1  
@@ -211,7 +221,6 @@ class ActiveThreadsManager:
             last_message = up_timestamp
         last_activity = max(last_message, up_timestamp)
         return last_activity + timedelta(minutes=thread.auto_archive_duration)
-
 
     def complete_last_message(self, string_to_add):
         last_message_length = len(self.messages[-1])
@@ -230,8 +239,7 @@ class ActiveThreadsManager:
         thread_string += self.add_message_count_if_required(thread)
         self.complete_last_message(thread_string)
 
-
-##### LEVEL 4
+    ##### LEVEL 4
     async def get_thread_last_message_date(self, thread):
         message_list = []
         async for item in thread.history(limit=1):
@@ -260,17 +268,12 @@ class ActiveThreadsManager:
         return f" :{parameters['emoji']}:" if hours_until_archive < hours_for_emoji else ""
 
     def add_message_count_if_required(self, thread):
-        message_count = thread.get("message_count", 0)
-        if message_count > 30:
-            return " :fire: (30+)"
-        elif message_count > 0:
-            return f" ({message_count})"
-        return ""
+        return f" ({thread['thread_message_count']})" if thread["thread_message_count"] > 0 else ""
 
 ##### LEVEL 2
     def update_instructions_string(self):
         self.instructions = f"""
-        Au {self.date.astimezone(tz=tz.gettz('Europe/Paris')).strftime("%d/%m/%Y, %H:%M:%S")} (heure de Paris), voici la liste des fils actifs sur ce serveur Discord.
+        Au {self.date.astimezone(tz=tz.gettz('Europe/Paris')).strftime("%d/%m/%Y, %H:%M:%S")} (heure de Paris), voici la liste des discussions en cours.
 
         **__Légende :__**
         > :{self.settings["new"]["emoji"]}: = {self.settings["new"]["description"]}
