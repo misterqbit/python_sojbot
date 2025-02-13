@@ -2,6 +2,7 @@ import json
 import random
 import re
 import unicodedata
+import disnake
 
 
 # File paths
@@ -84,15 +85,27 @@ async def display_leaderboard(ctx):
         return
 
     # Sort scores in descending order and get the top ten
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     leaderboard_text = "🏆 **Top 10 Leaderboard** 🏆\n"
-    for index, (user_id, score) in enumerate(sorted_scores, start=1):
-        # Get the user's name or mention based on user ID
-        user = await ctx.guild.fetch_member(int(user_id))
-        user_name = user.display_name if user else f"<@{user_id}>"
+    count = 0
 
-        leaderboard_text += f"> {index}. {user_name}: {score} point(s)\n"
+    for user_id, score in sorted_scores:
+        if count >= 10:
+            break  # Stop once we have ten valid entries
 
+        try:
+            # Fetch the user by ID
+            user = await ctx.guild.fetch_member(int(user_id))
+            user_name = user.display_name
+            leaderboard_text += f"> {count + 1}. {user_name}: {score} point(s)\n"
+            count += 1  # Increment count only for valid entries
+
+        except disnake.NotFound:
+            continue  # Skip missing users
+
+    if count == 0:
+        leaderboard_text += "No valid users on the leaderboard."
+        
     await ctx.channel.send(leaderboard_text)
     #await ctx.edit_original_response(content=' '.join(leaderboard_text))
 
@@ -272,4 +285,4 @@ async def guess(ctx, guess: str):
         await ctx.channel.send(' '.join(new_title_display))  # Send the display for the new game title
     else:
             update_game_state(LOCAL_VALUES_FILE, active_game_id, total_guesses, revealed_letters)
-
+            

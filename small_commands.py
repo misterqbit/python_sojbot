@@ -95,7 +95,7 @@ async def up(inter: disnake.ApplicationCommandInteraction, bot):
 
 
     else:
-        await inter.edit_original_response(content="You are not in a thread.")
+        await inter.edit_original_response(content="Ceci n'est pas un fil.")
         # await inter.send('You are not in a thread.')
 
     print("up done")
@@ -266,7 +266,7 @@ async def member_count(inter: disnake.ApplicationCommandInteraction):
         return
 
     # bot_count = len([x for x in guild.members if x.bot])
-    bot_count = 5
+    bot_count = 7
     bot_string = 'bot' + ('s' if bot_count > 1 else '')
 
     member_count = guild.member_count - bot_count
@@ -288,6 +288,10 @@ async def member_count(inter: disnake.ApplicationCommandInteraction):
 
 # ############################################################################# ADDING MODOS TO NEW THREADS!
 async def adding_modos(thread, bot):
+    EXCLUDED_CHANNEL_IDS = [1333853515348447243, 1333807091395068059]
+    if thread.parent_id in EXCLUDED_CHANNEL_IDS :
+        return  # Skip excluded channels
+
     random_user_pool = ['265376610763538452', '223447091706462208', '114863657787064321', '364861291254382603', '296380281311723542']  # Add your user IDs here
 
     # Specific user ID to always include
