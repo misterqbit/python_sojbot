@@ -1,10 +1,37 @@
 from datetime import datetime, timedelta, timezone
 from dateutil import tz
-from disnake import Guild
 from disnake.ext import commands, tasks
 from tools.text_managers import read_yaml
 import mysql.connector
 from config import DB_host, DB_username, DB_password, DB_name
+import asyncio
+import time
+
+EXCLUDED_CHANNEL_IDS = [902498718673162251, 925034182072225793, 1218292569209831514, 1333853515348447243]
+EXCLUDED_THREAD_IDS = [1218292569209831514]
+EXCLUDED_CATEGORY_IDS = [902498217676140564]  # Replace with the category IDs to exclude
+
+
+# Rate Limiter Class
+class RateLimiter:
+    def __init__(self, max_requests_per_second):
+        self.max_requests_per_second = max_requests_per_second
+        self.request_times = []
+
+    async def acquire(self):
+        now = time.monotonic()
+
+        if len(self.request_times) >= self.max_requests_per_second:
+            earliest = self.request_times.pop(0)
+            wait_time = 1.0 - (now - earliest)
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
+
+        self.request_times.append(time.monotonic())
+
+# Instantiate the Rate Limiter
+rate_limiter = RateLimiter(max_requests_per_second=50)
+
 
 def get_db_connection():
     try:
@@ -35,13 +62,15 @@ class ActiveThreadsManager:
         self.messages = ['']
         self.api_call_count = 0
         self.refresh_open_threads_list.start()
+        #self.send_top_reacted_posts.start()
+
 
     @staticmethod
     def read_settings():
         return read_yaml('config/active_threads.yml')
 
     ##### LEVEL 0
-    @tasks.loop(hours=1)
+    @tasks.loop(hours=2)
     async def refresh_open_threads_list(self):
         self.initialize_run()
         await self.collect_channels_and_threads()
@@ -51,6 +80,7 @@ class ActiveThreadsManager:
         print(f"API Calls made: {self.api_call_count}")
         self.api_call_count = 0
 
+################################################################# DATABASE MAINTENANCE : EACH WEEK, IT REMOVES MESSAGES OLDER THAN 2 MONTHS
     @tasks.loop(hours=168)  # Run once a week
     async def delete_old_messages_from_db(self):
         db = get_db_connection()
@@ -65,12 +95,13 @@ class ActiveThreadsManager:
             """
             cursor.execute(query)
             db.commit()  # Commit the changes to the database
-            print("Deleted messages older than 2 months.")
+            print("DELETED MESSAGES OLDER THAN 2 MONTHS.")
         except mysql.connector.Error as err:
             print(f"Database error: {err}")
         finally:
             cursor.close()
             db.close()
+####################################################################################
 
     ##### LEVEL 1
     def initialize_run(self):
@@ -98,9 +129,15 @@ class ActiveThreadsManager:
     ##### LEVEL 2
     async def get_threads_info(self):
         self.threads = []
+        await rate_limiter.acquire()  # Rate limit before fetching active threads
         threads_raw = await self.guild.active_threads()
-        self.api_call_count += 1  
+        self.api_call_count += 1
+
         for thread in threads_raw:
+
+            if thread.parent.category_id in EXCLUDED_CATEGORY_IDS or thread.parent_id in EXCLUDED_CHANNEL_IDS or thread.id in EXCLUDED_THREAD_IDS:
+                continue  # Skip excluded channels or threads
+
             thread_dict = {
                 "channel": thread.parent,
                 "mention": thread.mention,
@@ -110,7 +147,7 @@ class ActiveThreadsManager:
                 "archive_date": await self.get_thread_archive_date(thread)
             }
             thread_dict["is_dead"] = thread_dict["archive_date"] < datetime.now(tz=timezone.utc)
-            thread_dict["excluded"] = thread.parent_id == 1218292569209831514
+            thread_dict["excluded"] = thread.parent.category_id in EXCLUDED_CATEGORY_IDS or thread.parent_id in EXCLUDED_CHANNEL_IDS or thread.id in EXCLUDED_THREAD_IDS
             self.threads.append(thread_dict)
 
     async def count_messages_last_6_hours(self):
@@ -160,7 +197,12 @@ class ActiveThreadsManager:
 
         while self.threads:
             channel = self.threads[0]["channel"]
+            if channel.id in EXCLUDED_CHANNEL_IDS:  # Skip excluded channels
+                self.threads = [thread for thread in self.threads if thread["channel"] != channel]
+                continue
+
             threads_channel = [thread for thread in self.threads if thread["channel"] == channel]
+            threads_channel = [thread for thread in threads_channel if thread["id"] not in EXCLUDED_THREAD_IDS]  # Exclude threads
             channel_dictionary = {
                 "channel": channel,
                 "threads": [thread for thread in threads_channel if not thread["is_dead"] and not thread["excluded"]],
@@ -202,18 +244,20 @@ class ActiveThreadsManager:
             self.complete_last_message('\n\n\n')
 
     async def delete_old_messages(self):
-        async for message in self.channel_to_update.history(limit=None):
-            self.api_call_count += 1  # Increment for fetching each batch of messages
+        async for message in self.channel_to_update.history(limit=100):
+            await rate_limiter.acquire()  # Apply rate limiting before fetching/deleting messages
+            self.api_call_count += 1
             await message.delete()
-            self.api_call_count += 1  # Increment for deleting each message
 
     async def send_new_messages(self):
         for message in self.messages:
+            await rate_limiter.acquire()  # Apply rate limiting before fetching/deleting messages
             await self.channel_to_update.send(message)
 
     ##### LEVEL 3
     async def get_thread_archive_date(self, thread):
         up_timestamp = thread.archive_timestamp
+        await rate_limiter.acquire()  # Apply rate limiting before fetching last message date
         self.api_call_count += 1  
         try:
             last_message = await self.get_thread_last_message_date(thread)
@@ -241,6 +285,7 @@ class ActiveThreadsManager:
 
     ##### LEVEL 4
     async def get_thread_last_message_date(self, thread):
+        await rate_limiter.acquire()  # Apply rate limiting before fetching thread history
         message_list = []
         async for item in thread.history(limit=1):
             self.api_call_count += 1  
@@ -268,13 +313,16 @@ class ActiveThreadsManager:
         return f" :{parameters['emoji']}:" if hours_until_archive < hours_for_emoji else ""
 
     def add_message_count_if_required(self, thread):
-        return f" ({thread['thread_message_count']})" if thread["thread_message_count"] > 0 else ""
+        message_count = thread["thread_message_count"]
+        # Add the fire emoji if the number of posts is greater than 15
+        fire_emoji = " 🔥" if message_count > 15 else ""
+        return f" ({message_count}){fire_emoji}" if message_count > 0 else ""
 
 ##### LEVEL 2
     def update_instructions_string(self):
         self.instructions = f"""
         Au {self.date.astimezone(tz=tz.gettz('Europe/Paris')).strftime("%d/%m/%Y, %H:%M:%S")} (heure de Paris), voici la liste des discussions en cours.
-
+        
         **__Légende :__**
         > :{self.settings["new"]["emoji"]}: = {self.settings["new"]["description"]}
         > :{self.settings["up"]["emoji"]}: = {self.settings["up"]["description"]}
