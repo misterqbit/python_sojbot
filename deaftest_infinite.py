@@ -98,6 +98,7 @@ async def display_image(inter: disnake.ApplicationCommandInteraction, bot):
 async def button_callback(inter, bot):
         user = inter.author
         print(f"solution button for deaftestinfinite on by {user}")
+        disnake.ui.Button.disabled = True
 
         if inter.channel_id == your_specified_thread_channel_id_2:
             random_game_number_tgdb = read_value_from_file('random_game_number_tgdb')
@@ -125,6 +126,9 @@ async def button_callback(inter, bot):
 
         elif inter.component.custom_id == "show_image_button_2":
             # Run display_image command again
-            await display_image(inter, bot)       
+            await display_image(inter, bot) 
+        
+        disnake.ui.Button.disabled = False
+      
 
 
